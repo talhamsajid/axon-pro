@@ -31,6 +31,9 @@ class NodeLabel(Enum):
     EVENT = "event"
     LISTENER = "listener"
     SERVICE_PROVIDER = "service_provider"
+    ROUTE = "route"
+    POLICY = "policy"
+    FORM_REQUEST = "form_request"
 
 class RelType(Enum):
     """Relationship types connecting graph nodes."""
@@ -49,6 +52,11 @@ class RelType(Enum):
     DISPATCHES = "dispatches"
     LISTENS_TO = "listens_to"
     OBSERVES = "observes"
+    MAPS_TO = "maps_to"
+    AUTHORIZED_BY = "authorized_by"
+    VALIDATED_BY = "validated_by"
+    BINDS = "binds"
+    RELATIONSHIP_TO = "relationship_to"
 
 def generate_id(label: NodeLabel, file_path: str, symbol_name: str = "") -> str:
     """Produce a deterministic node ID.

@@ -40,6 +40,9 @@ _KIND_TO_LABEL: dict[str, NodeLabel] = {
     "event": NodeLabel.EVENT,
     "listener": NodeLabel.LISTENER,
     "service_provider": NodeLabel.SERVICE_PROVIDER,
+    "route": NodeLabel.ROUTE,
+    "policy": NodeLabel.POLICY,
+    "form_request": NodeLabel.FORM_REQUEST,
 }
 
 @dataclass

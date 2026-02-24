@@ -80,6 +80,10 @@ class PHPParser(LanguageParser):
         start_line = node.start_point[0] + 1
         end_line = node.end_point[0] + 1
         node_content = content[node.start_byte : node.end_byte]
+        
+        # Extract signature (parameters)
+        params_node = node.child_by_field_name("parameters")
+        signature = params_node.text.decode("utf8") if params_node else ""
 
         result.symbols.append(
             SymbolInfo(
@@ -88,6 +92,7 @@ class PHPParser(LanguageParser):
                 start_line=start_line,
                 end_line=end_line,
                 content=node_content,
+                signature=signature,
                 class_name=class_name,
             )
         )
@@ -108,6 +113,10 @@ class PHPParser(LanguageParser):
         start_line = node.start_point[0] + 1
         end_line = node.end_point[0] + 1
         node_content = content[node.start_byte : node.end_byte]
+        
+        # Extract signature (parameters)
+        params_node = node.child_by_field_name("parameters")
+        signature = params_node.text.decode("utf8") if params_node else ""
 
         result.symbols.append(
             SymbolInfo(
@@ -116,6 +125,7 @@ class PHPParser(LanguageParser):
                 start_line=start_line,
                 end_line=end_line,
                 content=node_content,
+                signature=signature,
                 class_name=class_name,
             )
         )
@@ -165,6 +175,10 @@ class PHPParser(LanguageParser):
             kind = "event"
         elif class_name.endswith("Listener"):
             kind = "listener"
+        elif class_name.endswith("Policy"):
+            kind = "policy"
+        elif class_name.endswith("Request") or "FormRequest" in parents:
+            kind = "form_request"
         elif class_name.endswith("ServiceProvider"):
             kind = "service_provider"
 
@@ -178,20 +192,34 @@ class PHPParser(LanguageParser):
             )
         )
 
-        # Handle inheritance
-        if extends_clause:
-            for child in extends_clause.children:
-                if child.type == "name":
-                    result.heritage.append((class_name, "extends", child.text.decode("utf8")))
-
-        if implements_clause:
-            for child in implements_clause.children:
-                if child.type == "name":
-                    result.heritage.append((class_name, "implements", child.text.decode("utf8")))
-
+        # Eloquent Relationship Detection (simplified)
+        # We look for methods in classes that might be Models (heuristic)
+        is_model = "Model" in parents or any("Eloquent" in p for p in parents)
+        
         body = node.child_by_field_name("body")
         if body:
+            if is_model:
+                self._extract_eloquent_relationships(body, content, result)
             self._walk(body, content, result, class_name=class_name)
+
+    def _extract_eloquent_relationships(self, body: Node, content: str, result: ParseResult) -> None:
+        """Extract Eloquent relationship methods like hasMany, belongsTo."""
+        # We look for return statements in methods that call relationship functions
+        for method in body.children:
+            if method.type == "method_declaration":
+                # Find return $this->hasMany(...)
+                method_text = content[method.start_byte:method.end_byte]
+                rel_types = ["hasMany", "belongsTo", "hasOne", "belongsToMany", "morphTo", "morphMany", "morphedByMany"]
+                for rel_type in rel_types:
+                    if f"->{rel_type}(" in method_text:
+                        # Extract the target model name from the arguments
+                        import re
+                        match = re.search(fr"->{rel_type}\(([\w\\]+)::class", method_text)
+                        if match:
+                            target_model = match.group(1).split('\\')[-1]
+                            # We store this in heritage for now with a special kind
+                            method_name = method.child_by_field_name("name").text.decode("utf8")
+                            result.heritage.append((method_name, f"eloquent:{rel_type}", target_model))
 
     def _extract_interface(
         self,
