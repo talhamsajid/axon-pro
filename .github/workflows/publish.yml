@@ -1,36 +1,27 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
 
 jobs:
-  test:
+  pypi-publish:
+    name: Upload release to PyPI
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.11"
-      - run: uv sync --extra dev
-      - run: uv run pytest -x -q
-        timeout-minutes: 10
-
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-
     environment:
       name: pypi
-      url: https://pypi.org/p/axoniq
-
+      url: https://pypi.org/p/axon-pro
     permissions:
       id-token: write
-      contents: read
-
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv build
-      - run: uv publish
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Build and publish
+        run: |
+          uv build
+          uv publish
