@@ -241,12 +241,20 @@ class PHPParser(LanguageParser):
     def _extract_call(self, node: Node, result: ParseResult) -> None:
         """Extract a function call."""
         name_node = node.child_by_field_name("function")
+        args_node = node.child_by_field_name("arguments")
         if name_node:
             name = name_node.text.decode("utf8")
+            args = []
+            if args_node:
+                for arg in args_node.children:
+                    if arg.type in ["argument", "name", "qualified_name", "class_constant_access"]:
+                        args.append(arg.text.decode("utf8"))
+            
             result.calls.append(
                 CallInfo(
                     name=name,
                     line=node.start_point[0] + 1,
+                    arguments=args
                 )
             )
 
@@ -254,14 +262,22 @@ class PHPParser(LanguageParser):
         """Extract a member call ($obj->method())."""
         name_node = node.child_by_field_name("name")
         obj_node = node.child_by_field_name("object")
+        args_node = node.child_by_field_name("arguments")
         if name_node:
             name = name_node.text.decode("utf8")
             receiver = obj_node.text.decode("utf8") if obj_node else ""
+            args = []
+            if args_node:
+                for arg in args_node.children:
+                    if arg.type in ["argument", "name", "qualified_name", "class_constant_access"]:
+                        args.append(arg.text.decode("utf8"))
+            
             result.calls.append(
                 CallInfo(
                     name=name,
                     line=node.start_point[0] + 1,
                     receiver=receiver,
+                    arguments=args
                 )
             )
 
@@ -269,13 +285,21 @@ class PHPParser(LanguageParser):
         """Extract a scoped call (Class::method())."""
         name_node = node.child_by_field_name("name")
         scope_node = node.child_by_field_name("scope")
+        args_node = node.child_by_field_name("arguments")
         if name_node:
             name = name_node.text.decode("utf8")
             receiver = scope_node.text.decode("utf8") if scope_node else ""
+            args = []
+            if args_node:
+                for arg in args_node.children:
+                    if arg.type in ["argument", "name", "qualified_name", "class_constant_access"]:
+                        args.append(arg.text.decode("utf8"))
+            
             result.calls.append(
                 CallInfo(
                     name=name,
                     line=node.start_point[0] + 1,
                     receiver=receiver,
+                    arguments=args
                 )
             )

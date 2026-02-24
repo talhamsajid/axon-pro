@@ -34,6 +34,7 @@ from axon_pro.core.ingestion.coupling import process_coupling
 from axon_pro.core.ingestion.dead_code import process_dead_code
 from axon_pro.core.ingestion.heritage import process_heritage
 from axon_pro.core.ingestion.imports import process_imports
+from axon_pro.core.ingestion.laravel import process_laravel
 from axon_pro.core.ingestion.parser_phase import process_parsing
 from axon_pro.core.ingestion.processes import process_processes
 from axon_pro.core.ingestion.structure import process_structure
@@ -129,6 +130,10 @@ def run_pipeline(
     process_heritage(parse_data, graph)
     report("Extracting heritage", 1.0)
 
+    report("Analyzing Laravel structures", 0.0)
+    process_laravel(parse_data, graph)
+    report("Analyzing Laravel structures", 1.0)
+
     report("Analyzing types", 0.0)
     process_types(parse_data, graph)
     report("Analyzing types", 1.0)
@@ -195,6 +200,7 @@ def reindex_files(
     process_imports(parse_data, graph)
     process_calls(parse_data, graph)
     process_heritage(parse_data, graph)
+    process_laravel(parse_data, graph)
     process_types(parse_data, graph)
 
     storage.add_nodes(list(graph.iter_nodes()))

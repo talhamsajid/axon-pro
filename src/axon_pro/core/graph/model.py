@@ -46,6 +46,9 @@ class RelType(Enum):
     USES_TYPE = "uses_type"
     EXPORTS = "exports"
     COUPLED_WITH = "coupled_with"
+    DISPATCHES = "dispatches"
+    LISTENS_TO = "listens_to"
+    OBSERVES = "observes"
 
 def generate_id(label: NodeLabel, file_path: str, symbol_name: str = "") -> str:
     """Produce a deterministic node ID.
