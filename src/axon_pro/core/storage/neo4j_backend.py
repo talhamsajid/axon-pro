@@ -56,19 +56,16 @@ class Neo4jBackend(StorageBackend):
     @staticmethod
     def _create_nodes_batch(tx, nodes: list[GraphNode]) -> None:
         """Execute a batch of node creations."""
-        # We use UNWIND for high-performance bulk loading
-        query = """
-        UNWIND $batch AS data
-        CALL apoc.create.node([data.label], data.properties) YIELD node
-        SET node.id = data.id, node.name = data.name, node.file_path = data.file_path
-        RETURN count(node)
-        """
-        # Note: apoc.create.node allows dynamic labels. 
-        # If APOC isn't installed, we fallback to a simpler merge per label type.
+        import json
         
         node_data = []
         for n in nodes:
             props = n.properties.copy()
+            # Serialize any non-primitive properties to JSON
+            for key, value in props.items():
+                if isinstance(value, (dict, list)):
+                    props[key] = json.dumps(value)
+            
             props.update({
                 "start_line": n.start_line,
                 "end_line": n.end_line,
@@ -83,8 +80,6 @@ class Neo4jBackend(StorageBackend):
                 "properties": props
             })
         
-        # Simple fallback if APOC is not available (Manual Label Mapping)
-        # For production, we'll use a more robust MERGE approach
         for label in NodeLabel:
             label_nodes = [n for n in node_data if n["label"] == label.value.capitalize()]
             if label_nodes:
