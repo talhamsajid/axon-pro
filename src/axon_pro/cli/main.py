@@ -61,6 +61,10 @@ def main(
 def analyze(
     path: Path = typer.Argument(Path("."), help="Path to the repository to index."),
     full: bool = typer.Option(False, "--full", help="Perform a full re-index."),
+    neo4j: bool = typer.Option(False, "--neo4j", help="Export to a Neo4j database."),
+    neo4j_url: str = typer.Option("bolt://localhost:7687", "--neo4j-url", help="Neo4j connection URI."),
+    neo4j_user: str = typer.Option("neo4j", "--neo4j-user", help="Neo4j username."),
+    neo4j_pass: str = typer.Option("password", "--neo4j-pass", help="Neo4j password."),
 ) -> None:
     """Index a repository into a knowledge graph."""
     from axon_pro.core.ingestion.pipeline import PipelineResult, run_pipeline
@@ -77,8 +81,13 @@ def analyze(
     axon_dir.mkdir(parents=True, exist_ok=True)
     db_path = axon_dir / "kuzu"
 
-    storage = KuzuBackend()
-    storage.initialize(db_path)
+    if neo4j:
+        from axon_pro.core.storage.neo4j_backend import Neo4jBackend
+        storage = Neo4jBackend(uri=neo4j_url, user=neo4j_user, password=neo4j_pass)
+        console.print(f"[green]Using Neo4j backend at {neo4j_url}[/green]")
+    else:
+        storage = KuzuBackend()
+        storage.initialize(db_path)
 
     result: PipelineResult | None = None
     with Progress(
