@@ -165,6 +165,7 @@ class PHPParser(LanguageParser):
                     parents.append(child.text.decode("utf8"))
 
         # Laravel Heuristics
+        is_sp = False
         if any(p in ["Migration", "Schema"] for p in parents) or "Migration" in class_name:
             kind = "migration"
         elif any(p in ["Command", "Job", "ShouldQueue"] for p in parents) or class_name.endswith("Job") or class_name.endswith("Command"):
@@ -181,6 +182,7 @@ class PHPParser(LanguageParser):
             kind = "form_request"
         elif class_name.endswith("ServiceProvider"):
             kind = "service_provider"
+            is_sp = True
 
         result.symbols.append(
             SymbolInfo(
@@ -200,7 +202,26 @@ class PHPParser(LanguageParser):
         if body:
             if is_model:
                 self._extract_eloquent_relationships(body, content, result)
+            if is_sp:
+                self._extract_container_bindings(body, content, result)
             self._walk(body, content, result, class_name=class_name)
+
+    def _extract_container_bindings(self, body: Node, content: str, result: ParseResult) -> None:
+        """Extract Service Container bindings like $this->app->bind()."""
+        # Look for $this->app->bind(Interface::class, Concrete::class)
+        for method in body.children:
+            if method.type == "method_declaration":
+                method_text = content[method.start_byte:method.end_byte]
+                binding_methods = ["bind", "singleton", "scoped", "instance"]
+                for bm in binding_methods:
+                    if f"->{bm}(" in method_text:
+                        import re
+                        # Pattern: ->bind(SomeInterface::class, SomeConcrete::class)
+                        match = re.search(fr"->{bm}\(([\w\\]+)::class\s*,\s*([\w\\]+)::class", method_text)
+                        if match:
+                            interface = match.group(1).split('\\')[-1]
+                            concrete = match.group(2).split('\\')[-1]
+                            result.heritage.append((interface, "binds", concrete))
 
     def _extract_eloquent_relationships(self, body: Node, content: str, result: ParseResult) -> None:
         """Extract Eloquent relationship methods like hasMany, belongsTo."""

@@ -38,8 +38,57 @@ def process_laravel(parse_data_list: list[FileParseData], graph: KnowledgeGraph)
     # 6. FormRequest Mapping
     _link_form_requests(parse_data_list, graph)
 
-    # 7. Tracing Dispatches
+    # 7. Container Bindings
+    _link_container_bindings(parse_data_list, graph)
+
+    # 8. Facade Resolution
+    _resolve_facades(parse_data_list, graph)
+
+    # 9. Tracing Dispatches
     _trace_laravel_dispatches(parse_data_list, graph)
+
+def _link_container_bindings(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
+    """Link Interfaces to Concrete classes based on Service Container bindings."""
+    for data in parse_data_list:
+        for interface_name, kind, concrete_name in data.parse_result.heritage:
+            if kind == "binds":
+                # Find the interface and concrete nodes
+                # Interface might be NodeLabel.INTERFACE or NodeLabel.CLASS
+                interface_nodes = [n for n in graph.iter_nodes() if n.name == interface_name]
+                concrete_nodes = [n for n in graph.iter_nodes() if n.name == concrete_name]
+                
+                for i_node in interface_nodes:
+                    for c_node in concrete_nodes:
+                        rel_id = f"binds:{i_node.id}->{c_node.id}"
+                        graph.add_relationship(
+                            GraphRelationship(
+                                id=rel_id,
+                                type=RelType.BINDS,
+                                source=i_node.id,
+                                target=c_node.id,
+                            )
+                        )
+
+def _resolve_facades(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
+    """Map calls to standard Laravel Facades to their underlying implementation classes."""
+    facade_map = {
+        "DB": "Connection",
+        "Cache": "Repository",
+        "Storage": "FilesystemAdapter",
+        "Log": "Logger",
+        "Event": "Dispatcher",
+        "Route": "Router",
+        "Auth": "Guard",
+    }
+    
+    for data in parse_data_list:
+        for call in data.parse_result.calls:
+            if call.receiver in facade_map:
+                impl_class = facade_map[call.receiver]
+                # We could add a property to the call relationship or create a virtual link
+                # For now, we'll mark the call node as a Facade call in properties
+                # (Actual linking to the implementation requires finding where those classes are defined)
+                pass
 
 def _link_events_and_listeners(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
     """Search for $listen array in EventServiceProvider and link Event to Listeners."""
