@@ -1,6 +1,6 @@
 [project]
 name = "axon-pro"
-version = "0.3.1"
+version = "0.3.2"
 description = "Enterprise-grade graph-powered code intelligence engine with support for Python, JS/TS, PHP, Java, and C#."
 readme = "README.md"
 license = "MIT"
