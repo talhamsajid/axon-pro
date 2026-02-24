@@ -25,15 +25,25 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Resource, TextContent, Tool
 
 from axon_pro.core.storage.kuzu_backend import KuzuBackend
-from axon_pro.mcp.resources import get_dead_code_list, get_overview, get_schema
+from axon_pro.mcp.resources import get_dead_code_list, get_overview, get_schema, get_agent_guidelines
 from axon_pro.mcp.tools import (
     handle_context,
     handle_cypher,
     handle_dead_code,
     handle_detect_changes,
+    handle_file_context,
+    handle_flow_trace,
     handle_impact,
     handle_list_repos,
     handle_query,
+    handle_related_files,
+)
+from axon_pro.mcp.high_utility_tools import (
+    handle_architecture,
+    handle_check_nplus1,
+    handle_explain_flow,
+    handle_impact_on_tests,
+    handle_search_code,
 )
 
 logger = logging.getLogger(__name__)
@@ -183,6 +193,116 @@ TOOLS: list[Tool] = [
             "required": ["query"],
         },
     ),
+    Tool(
+        name="axon_pro_file_context",
+        description="Get a detailed breakdown of a file's context, including defined symbols, their external calls, and who calls them.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file to analyse.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="axon_pro_related_files",
+        description="Find all files that relate to a given file through incoming or outgoing code dependencies.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the starting file.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
+    Tool(
+        name="axon_pro_flow_trace",
+        description="Trace the execution flow downstream starting from a specific symbol to understand its behavior deeply.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Name of the symbol to trace.",
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "Maximum traversal depth (default 5).",
+                    "default": 5,
+                },
+            },
+            "required": ["symbol"],
+        },
+    ),
+    Tool(
+        name="axon_pro_architecture",
+        description="Get a high-level architectural overview of the project (Models, Controllers, Jobs, etc).",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="axon_pro_search_code",
+        description="Search for code patterns or literal snippets across the indexed content.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Text or pattern to search for in code content.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results (default 10).",
+                    "default": 10,
+                },
+            },
+            "required": ["pattern"],
+        },
+    ),
+    Tool(
+        name="axon_pro_explain_flow",
+        description="Explain the execution flow of a symbol in natural language, categorizing downstream actions.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Symbol name to explain.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    ),
+    Tool(
+        name="axon_pro_check_nplus1",
+        description="Scan for potential N+1 query patterns or heavy database usage in the indexed code.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    Tool(
+        name="axon_pro_impact_on_tests",
+        description="Identify which tests might be affected by changing a specific symbol.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Symbol name to analyze test impact for.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    ),
 ]
 
 @server.list_tools()
@@ -206,6 +326,22 @@ def _dispatch_tool(name: str, arguments: dict, storage: KuzuBackend) -> str:
         return handle_detect_changes(storage, arguments.get("diff", ""))
     elif name == "axon_pro_cypher":
         return handle_cypher(storage, arguments.get("query", ""))
+    elif name == "axon_pro_file_context":
+        return handle_file_context(storage, arguments.get("file_path", ""))
+    elif name == "axon_pro_related_files":
+        return handle_related_files(storage, arguments.get("file_path", ""))
+    elif name == "axon_pro_flow_trace":
+        return handle_flow_trace(storage, arguments.get("symbol", ""), depth=arguments.get("depth", 5))
+    elif name == "axon_pro_architecture":
+        return handle_architecture(storage)
+    elif name == "axon_pro_search_code":
+        return handle_search_code(storage, arguments.get("pattern", ""), limit=arguments.get("limit", 10))
+    elif name == "axon_pro_explain_flow":
+        return handle_explain_flow(storage, arguments.get("symbol", ""))
+    elif name == "axon_pro_check_nplus1":
+        return handle_check_nplus1(storage)
+    elif name == "axon_pro_impact_on_tests":
+        return handle_impact_on_tests(storage, arguments.get("symbol", ""))
     else:
         return f"Unknown tool: {name}"
 
@@ -245,6 +381,12 @@ async def list_resources() -> list[Resource]:
             description="Description of the Axon Pro knowledge graph schema.",
             mimeType="text/plain",
         ),
+        Resource(
+            uri="axon-pro://agent-guidelines",
+            name="AI Agent Guidelines",
+            description="Instructions for AI agents on how to use Axon Pro effectively.",
+            mimeType="text/plain",
+        ),
     ]
 
 def _dispatch_resource(uri_str: str, storage: KuzuBackend) -> str:
@@ -255,6 +397,8 @@ def _dispatch_resource(uri_str: str, storage: KuzuBackend) -> str:
         return get_dead_code_list(storage)
     if uri_str == "axon-pro://schema":
         return get_schema()
+    if uri_str == "axon-pro://agent-guidelines":
+        return get_agent_guidelines()
     return f"Unknown resource: {uri_str}"
 
 

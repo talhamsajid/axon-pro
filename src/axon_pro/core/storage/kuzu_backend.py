@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import logging
+import os
 import tempfile
 from collections import deque
 from pathlib import Path
@@ -100,7 +101,17 @@ class KuzuBackend:
                 instances) without lock conflicts.  Schema creation is
                 skipped since the database must already exist.
         """
-        self._db = kuzu.Database(str(path), read_only=read_only)
+        # Virtual memory limit (VSZ) — defaults to 4GB to prevent 32GB+ allocation
+        max_db_size = int(os.environ.get("AXON_KUZU_MAX_DB_SIZE", 4 * 1024 * 1024 * 1024))
+        # Physical memory limit (RSS) buffer pool — defaults to 1GB
+        buffer_pool_size = int(os.environ.get("AXON_KUZU_BUFFER_POOL_SIZE", 1024 * 1024 * 1024))
+
+        self._db = kuzu.Database(
+            str(path), 
+            read_only=read_only,
+            max_db_size=max_db_size,
+            buffer_pool_size=buffer_pool_size
+        )
         self._conn = kuzu.Connection(self._db)
         if not read_only:
             self._create_schema()

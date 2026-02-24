@@ -11,18 +11,7 @@ from axon_pro.core.storage.base import StorageBackend
 
 
 def get_overview(storage: StorageBackend) -> str:
-    """Generate a high-level overview of the indexed codebase.
-
-    Queries the storage backend for aggregate statistics and returns
-    a human-readable summary.
-
-    Args:
-        storage: The storage backend.
-
-    Returns:
-        Formatted overview including node counts, file counts, and
-        relationship statistics.
-    """
+    """Generate a high-level overview of the indexed codebase."""
     lines = ["Axon Pro Codebase Overview", "=" * 40, ""]
 
     try:
@@ -66,14 +55,7 @@ def get_overview(storage: StorageBackend) -> str:
     return "\n".join(lines)
 
 def get_dead_code_list(storage: StorageBackend) -> str:
-    """Generate a formatted list of all dead code in the codebase.
-
-    Args:
-        storage: The storage backend.
-
-    Returns:
-        Formatted list of symbols flagged as dead code.
-    """
+    """Generate a formatted list of all dead code in the codebase."""
     try:
         rows = storage.execute_raw(
             "MATCH (n) WHERE n.is_dead = true "
@@ -101,14 +83,7 @@ def get_dead_code_list(storage: StorageBackend) -> str:
     return "\n".join(lines)
 
 def get_schema() -> str:
-    """Return a static description of the Axon Pro knowledge graph schema.
-
-    This does not require a storage connection since the schema is fixed.
-
-    Returns:
-        Human-readable description of node labels, relationship types,
-        and key properties.
-    """
+    """Return a static description of the Axon Pro knowledge graph schema."""
     return """Axon Pro Knowledge Graph Schema
 ========================================
 
@@ -147,4 +122,25 @@ Relationship Properties:
 ID Format:
   {label}:{file_path}:{symbol_name}
   Example: function:src/auth.py:validate_user
+"""
+
+def get_agent_guidelines() -> str:
+    """Return a set of guidelines for AI agents to use Axon Pro effectively."""
+    return """Axon Pro: Guidelines for AI Agents
+========================================
+
+You should use Axon Pro as your PRIMARY source of architectural truth. It provides 100% precise static analysis that is more reliable than grep or file reading alone.
+
+Recommended Workflow:
+1. Start with `axon_pro_architecture` to understand the project structure.
+2. Use `axon_pro_query` to find symbols related to your task.
+3. Use `axon_pro_context` on a symbol to see its callers, callees, and Laravel-specific links.
+4. Use `axon_pro_impact` BEFORE making changes to see the blast radius.
+5. Use `axon_pro_explain_flow` to understand complex logic without reading every file.
+6. Use `axon_pro_impact_on_tests` to know exactly which tests to run after your change.
+
+Pro-Tips:
+- If you're lost, use `axon_pro_related_files` to see how files are coupled.
+- If you see a 'DEAD CODE' flag in `axon_pro_context`, you can safely ignore or remove that code.
+- Use `axon_pro_cypher` for custom deep-dives (e.g., 'MATCH (c:Class)-[:RENDERS]->(v:View) RETURN c.name, v.name').
 """

@@ -104,7 +104,7 @@ def handle_query(storage: StorageBackend, query: str, limit: int = 20) -> str:
             snippet = r.snippet[:200].replace("\n", " ").strip()
             lines.append(f"   {snippet}")
     lines.append("")
-    lines.append("Next: Use context() on a specific symbol for the full picture.")
+    lines.append("PRO-TIP: Use `axon_pro_context(symbol)` on a specific symbol to see its callers, callees, and architectural links.")
     return "\n".join(lines)
 
 def handle_context(storage: StorageBackend, symbol: str) -> str:
@@ -193,7 +193,7 @@ def handle_context(storage: StorageBackend, symbol: str) -> str:
         lines.extend(laravel_rels)
 
     lines.append("")
-    lines.append("Next: Use impact() if planning changes to this symbol.")
+    lines.append("PRO-TIP: Use `axon_pro_impact(symbol)` to see the blast radius of changing this symbol, or `axon_pro_explain_flow(symbol)` for a natural language behavior summary.")
     return "\n".join(lines)
 
 def handle_impact(storage: StorageBackend, symbol: str, depth: int = 3) -> str:
@@ -232,7 +232,7 @@ def handle_impact(storage: StorageBackend, symbol: str, depth: int = 3) -> str:
         lines.append(f"  {i}. {node.name} ({label}) -- {node.file_path}:{node.start_line}")
 
     lines.append("")
-    lines.append("Tip: Review each affected symbol before making changes.")
+    lines.append("PRO-TIP: Use `axon_pro_impact_on_tests(symbol)` to identify exactly which tests you must run after modifying this symbol.")
     return "\n".join(lines)
 
 def handle_dead_code(storage: StorageBackend) -> str:
@@ -328,7 +328,7 @@ def handle_detect_changes(storage: StorageBackend, diff: str) -> str:
 
     lines.append(f"Total affected symbols: {total_affected}")
     lines.append("")
-    lines.append("Next: Use impact() on affected symbols to see downstream effects.")
+    lines.append("PRO-TIP: Use `axon_pro_impact(symbol)` on these affected symbols to see downstream effects across the entire codebase.")
     return "\n".join(lines)
 
 _WRITE_KEYWORDS = re.compile(
@@ -370,3 +370,117 @@ def handle_cypher(storage: StorageBackend, query: str) -> str:
         lines.append(f"  {i}. {' | '.join(formatted_values)}")
 
     return "\n".join(lines)
+
+def handle_file_context(storage: StorageBackend, file_path: str) -> str:
+    """Get a detailed breakdown of a file's context.
+    
+    Shows all symbols defined in the file, what they call externally, 
+    and who calls them from outside the file.
+    """
+    rows = storage.execute_raw(
+        f"MATCH (n) WHERE n.file_path ENDS WITH '{file_path}' "
+        f"RETURN n.id, n.name, labels(n)[0] AS label "
+        f"ORDER BY n.start_line"
+    )
+    if not rows:
+        return f"No symbols found in file matching '{file_path}'."
+        
+    lines = [f"File Context for: {file_path}"]
+    lines.append("")
+    
+    for row in rows:
+        node_id, name, label = row[0], row[1], row[2]
+        lines.append(f"Symbol: {name} ({label})")
+        
+        # Outgoing calls
+        out_rows = storage.execute_raw(
+            "MATCH (n {id: $id})-[:calls]->(ext) "
+            "WHERE NOT ext.file_path ENDS WITH $file "
+            "RETURN ext.name, ext.file_path", 
+            {"id": node_id, "file": file_path}
+        )
+        if out_rows:
+            lines.append(f"  -> Calls External ({len(out_rows)}):")
+            for out in out_rows:
+                lines.append(f"       {out[0]} in {out[1]}")
+                
+        # Incoming calls
+        in_rows = storage.execute_raw(
+            "MATCH (ext)-[:calls]->(n {id: $id}) "
+            "WHERE NOT ext.file_path ENDS WITH $file "
+            "RETURN ext.name, ext.file_path", 
+            {"id": node_id, "file": file_path}
+        )
+        if in_rows:
+            lines.append(f"  <- Called By External ({len(in_rows)}):")
+            for in_r in in_rows:
+                lines.append(f"       {in_r[0]} in {in_r[1]}")
+                
+        lines.append("")
+        
+    return "\n".join(lines)
+
+def handle_related_files(storage: StorageBackend, file_path: str) -> str:
+    """Find all files that relate to a given file through dependencies."""
+    out_rows = storage.execute_raw(
+        "MATCH (n)-[:calls]->(ext) "
+        "WHERE n.file_path ENDS WITH $file AND NOT ext.file_path ENDS WITH $file "
+        "RETURN ext.file_path, count(*) as weight "
+        "ORDER BY weight DESC LIMIT 10",
+        {"file": file_path}
+    )
+    
+    in_rows = storage.execute_raw(
+        "MATCH (ext)-[:calls]->(n) "
+        "WHERE n.file_path ENDS WITH $file AND NOT ext.file_path ENDS WITH $file "
+        "RETURN ext.file_path, count(*) as weight "
+        "ORDER BY weight DESC LIMIT 10",
+        {"file": file_path}
+    )
+    
+    if not out_rows and not in_rows:
+        return f"No related files found for '{file_path}'."
+        
+    lines = [f"Related Files for: {file_path}"]
+    lines.append("")
+    
+    if out_rows:
+        lines.append("Files this file depends on (Calls Out To):")
+        for row in out_rows:
+            lines.append(f"  - {row[0]} ({row[1]} references)")
+        lines.append("")
+        
+    if in_rows:
+        lines.append("Files that depend on this file (Called By):")
+        for row in in_rows:
+            lines.append(f"  - {row[0]} ({row[1]} references)")
+            
+    return "\n".join(lines)
+
+def handle_flow_trace(storage: StorageBackend, symbol: str, depth: int = 5) -> str:
+    """Trace the execution flow starting from a specific symbol."""
+    results = _resolve_symbol(storage, symbol)
+    if not results:
+        return f"Symbol '{symbol}' not found."
+
+    start_node = storage.get_node(results[0].node_id)
+    if not start_node:
+        return f"Symbol '{symbol}' not found."
+
+    affected = storage.traverse(start_node.id, depth, direction="callees")
+    if not affected:
+        return f"No downstream calls found for '{symbol}'."
+
+    lines = [f"Execution Flow Trace for: {start_node.name}"]
+    lines.append(f"Max Depth: {depth}")
+    lines.append(f"Total downstream symbols called: {len(affected)}")
+    lines.append("")
+
+    for i, node in enumerate(affected, 1):
+        label = node.label.value.title() if node.label else "Unknown"
+        lines.append(f"  {i}. {node.name} ({label}) -- {node.file_path}:{node.start_line}")
+
+    lines.append("")
+    lines.append("Tip: Use axon_pro_file_context on specific files for more detail.")
+    return "\n".join(lines)
+
