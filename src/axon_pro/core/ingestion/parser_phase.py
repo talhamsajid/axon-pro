@@ -231,6 +231,7 @@ def process_parsing(
                     class_name=symbol.class_name,
                     language=file_entry.language,
                     is_exported=is_exported,
+                    is_entry_point=symbol.is_entry_point,
                     properties=props,
                 )
             )

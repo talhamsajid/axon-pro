@@ -160,33 +160,45 @@ def handle_context(storage: StorageBackend, symbol: str) -> str:
     laravel_rels = []
     
     # 1. Dispatching/Messaging
-    dispatches = storage.query("MATCH (n {id: $id})-[:dispatches]->(t) RETURN t.name AS name, labels(t) AS labels", {"id": node.id})
-    for d in dispatches:
-        laravel_rels.append(f"  [DISPATCHES] -> {d['name']} ({d['labels'][0]})")
+    try:
+        dispatches = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:dispatches]->(t) RETURN t.name, labels(t)")
+        for d in dispatches:
+            laravel_rels.append(f"  [DISPATCHES] -> {d[0]} ({d[1][0]})")
+    except Exception: pass
         
     # 2. Event Listening
-    listens = storage.query("MATCH (n {id: $id})-[:listens_to]->(t) RETURN t.name AS name", {"id": node.id})
-    for l in listens:
-        laravel_rels.append(f"  [LISTENS TO] -> Event: {l['name']}")
+    try:
+        listens = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:listens_to]->(t) RETURN t.name")
+        for l in listens:
+            laravel_rels.append(f"  [LISTENS TO] -> Event: {l[0]}")
+    except Exception: pass
         
     # 3. View Rendering
-    renders = storage.query("MATCH (n {id: $id})-[:renders]->(t) RETURN t.name AS name", {"id": node.id})
-    for r in renders:
-        laravel_rels.append(f"  [RENDERS]    -> View: {r['name']}")
+    try:
+        renders = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:renders]->(t) RETURN t.name")
+        for r in renders:
+            laravel_rels.append(f"  [RENDERS]    -> View: {r[0]}")
+    except Exception: pass
         
     # 4. Security/Validation
-    auth = storage.query("MATCH (n {id: $id})-[:authorized_by]->(t) RETURN t.name AS name", {"id": node.id})
-    for a in auth:
-        laravel_rels.append(f"  [AUTH BY]    -> Policy: {a['name']}")
+    try:
+        auth = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:authorized_by]->(t) RETURN t.name")
+        for a in auth:
+            laravel_rels.append(f"  [AUTH BY]    -> Policy: {a[0]}")
+    except Exception: pass
         
-    valid = storage.query("MATCH (n {id: $id})-[:validated_by]->(t) RETURN t.name AS name", {"id": node.id})
-    for v in valid:
-        laravel_rels.append(f"  [VALID BY]   -> Request: {v['name']}")
+    try:
+        valid = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:validated_by]->(t) RETURN t.name")
+        for v in valid:
+            laravel_rels.append(f"  [VALID BY]   -> Request: {v[0]}")
+    except Exception: pass
 
     # 5. DI Container Bindings
-    binds = storage.query("MATCH (n {id: $id})-[:binds]->(t) RETURN t.name AS name", {"id": node.id})
-    for b in binds:
-        laravel_rels.append(f"  [BINDS TO]   -> Concrete: {b['name']}")
+    try:
+        binds = storage.execute_raw(f"MATCH (n {{id: '{node.id}'}})-[:binds]->(t) RETURN t.name")
+        for b in binds:
+            laravel_rels.append(f"  [BINDS TO]   -> Concrete: {b[0]}")
+    except Exception: pass
 
     if laravel_rels:
         lines.append("\nLaravel Architectural Links:")

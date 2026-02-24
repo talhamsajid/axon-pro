@@ -21,6 +21,7 @@ class SymbolInfo:
     signature: str = ""
     class_name: str = ""  # for methods: the owning class
     decorators: list[str] = field(default_factory=list)  # e.g. ["staticmethod", "server.list_tools"]
+    is_entry_point: bool = False
 
 @dataclass
 class ImportInfo:

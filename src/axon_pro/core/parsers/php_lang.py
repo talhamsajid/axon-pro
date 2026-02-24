@@ -40,6 +40,7 @@ class PHPParser(LanguageParser):
         result: ParseResult,
         class_name: str,
         in_loop: bool = False,
+        is_entry_context: bool = False,
     ) -> None:
         """Recursively walk the AST to extract definitions."""
         for child in node.children:
@@ -51,9 +52,9 @@ class PHPParser(LanguageParser):
                 case "interface_declaration":
                     self._extract_interface(child, content, result)
                 case "method_declaration":
-                    self._extract_method(child, content, result, class_name)
+                    self._extract_method(child, content, result, class_name, is_entry_context)
                 case "namespace_definition":
-                    self._walk(child, content, result, class_name, in_loop)
+                    self._walk(child, content, result, class_name, in_loop, is_entry_context)
                 case "namespace_use_declaration":
                     self._extract_import(child, result)
                 case "function_call_expression":
@@ -63,9 +64,9 @@ class PHPParser(LanguageParser):
                 case "scoped_call_expression":
                     self._extract_scoped_call(child, result, in_loop)
                 case "foreach_statement" | "for_statement" | "while_statement" | "do_statement":
-                    self._walk(child, content, result, class_name, in_loop=True)
+                    self._walk(child, content, result, class_name, in_loop=True, is_entry_context=is_entry_context)
                 case _:
-                    self._walk(child, content, result, class_name, in_loop)
+                    self._walk(child, content, result, class_name, in_loop, is_entry_context)
 
     def _extract_function(
         self,
@@ -111,6 +112,7 @@ class PHPParser(LanguageParser):
         content: str,
         result: ParseResult,
         class_name: str,
+        is_entry_context: bool = False,
     ) -> None:
         """Extract a method definition."""
         name_node = node.child_by_field_name("name")
@@ -126,6 +128,11 @@ class PHPParser(LanguageParser):
         params_node = node.child_by_field_name("parameters")
         signature = params_node.text.decode("utf8") if params_node else ""
 
+        # Mark 'handle', '__invoke', etc as entry points if in an entry class context
+        is_entry = False
+        if is_entry_context and name in ["handle", "__invoke", "up", "down", "register", "boot"]:
+            is_entry = True
+
         result.symbols.append(
             SymbolInfo(
                 name=name,
@@ -135,6 +142,7 @@ class PHPParser(LanguageParser):
                 content=node_content,
                 signature=signature,
                 class_name=class_name,
+                is_entry_point=is_entry,
             )
         )
         
@@ -180,25 +188,31 @@ class PHPParser(LanguageParser):
 
         # Laravel Heuristics
         is_sp = False
+        is_entry_class = False
         if any(p in ["Migration", "Schema"] for p in parents) or "Migration" in class_name:
             kind = "migration"
+            is_entry_class = True
         elif any(p in ["Command", "Job", "ShouldQueue"] for p in parents) or class_name.endswith("Job") or class_name.endswith("Command"):
-            kind = "job" if "Job" in class_name or "ShouldQueue" in parents else "command"
+            kind = "job" if ("Job" in class_name or "ShouldQueue" in parents) else "command"
+            is_entry_class = True
         elif class_name.endswith("Observer"):
             kind = "observer"
         elif class_name.endswith("Event"):
             kind = "event"
         elif class_name.endswith("Listener"):
             kind = "listener"
+            is_entry_class = True
         elif class_name.endswith("Policy"):
             kind = "policy"
         elif class_name.endswith("Request") or "FormRequest" in parents:
             kind = "form_request"
         elif class_name.endswith("Middleware") or "Middleware" in parents:
             kind = "middleware"
+            is_entry_class = True
         elif class_name.endswith("ServiceProvider"):
             kind = "service_provider"
             is_sp = True
+            is_entry_class = True
 
         result.symbols.append(
             SymbolInfo(
@@ -207,6 +221,7 @@ class PHPParser(LanguageParser):
                 start_line=start_line,
                 end_line=end_line,
                 content=node_content,
+                is_entry_point=is_entry_class,
             )
         )
 
@@ -220,7 +235,8 @@ class PHPParser(LanguageParser):
                 self._extract_eloquent_relationships(body, content, result)
             if is_sp:
                 self._extract_container_bindings(body, content, result)
-            self._walk(body, content, result, class_name=class_name)
+            
+            self._walk(body, content, result, class_name=class_name, is_entry_context=is_entry_class)
 
     def _extract_container_bindings(self, body: Node, content: str, result: ParseResult) -> None:
         """Extract Service Container bindings like $this->app->bind()."""
