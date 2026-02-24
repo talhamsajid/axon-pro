@@ -174,6 +174,102 @@ def status() -> None:
     if stats.get("coupled_pairs", 0) > 0:
         console.print(f"  Coupled pairs:  {stats['coupled_pairs']}")
 
+@app.command()
+def check() -> None:
+    """Run architectural linting rules against the knowledge graph."""
+    from axon_pro.core.storage.kuzu_backend import KuzuBackend
+    
+    repo_path = Path.cwd().resolve()
+    meta_path = repo_path / ".axon-pro" / "meta.json"
+    if not meta_path.exists():
+        console.print("[red]Error:[/red] No index found. Run 'axon-pro analyze' first.")
+        raise typer.Exit(1)
+
+    db_path = repo_path / ".axon-pro" / "kuzu"
+    storage = KuzuBackend()
+    storage.initialize(db_path)
+
+    console.print("[bold]Running Architectural Audit...[/bold]\n")
+    
+    violations = 0
+    
+    # Rule 1: No Direct DB calls in Controllers (Architecture: Use Services/Repositories)
+    # We query for calls where receiver is 'DB' and the caller class ends with 'Controller'
+    db_calls = storage.query("MATCH (c:class)-[:defines]->(m:method)-[:calls]->(call) WHERE c.name ENDS WITH 'Controller' AND call.receiver = 'DB' RETURN c.name AS controller, call.name AS method, call.line AS line")
+    if db_calls:
+        console.print("[yellow]Violation:[/yellow] Direct DB Facade usage found in Controllers (Architecture: Use Services/Repositories)")
+        for call in db_calls:
+            console.print(f"  - {call['controller']} uses DB::{call['method']}() at line {call['line']}")
+            violations += 1
+
+    # Rule 2: N+1 Query Warnings
+    n_plus_ones = storage.query("MATCH (n) WHERE n.n_plus_one_warnings IS NOT NULL RETURN n.name AS name, n.file_path AS file, n.n_plus_one_warnings AS warnings")
+    if n_plus_ones:
+        console.print("\n[red]Warning:[/red] Potential N+1 queries detected in loops")
+        for n in n_plus_ones:
+            import json
+            ws = json.loads(n['warnings']) if isinstance(n['warnings'], str) else n['warnings']
+            for w in ws:
+                console.print(f"  - {n['name']} ({n['file']}): Loop calls {w['method']}() at line {w['line']}")
+                violations += 1
+
+    if violations == 0:
+        console.print("[green]Success:[/green] No architectural violations found.")
+    else:
+        console.print(f"\n[bold red]Audit Failed:[/bold red] Found {violations} violations.")
+        # We don't necessarily want to fail the command during interactive use, 
+        # but we could exit with 1 for CI/CD usage.
+        # raise typer.Exit(1)
+
+    storage.close()
+
+@app.command()
+def brief() -> None:
+    """Generate a high-level architectural brief of the codebase."""
+    from axon_pro.core.storage.kuzu_backend import KuzuBackend
+    
+    repo_path = Path.cwd().resolve()
+    meta_path = repo_path / ".axon-pro" / "meta.json"
+    if not meta_path.exists():
+        console.print("[red]Error:[/red] No index found. Run 'axon-pro analyze' first.")
+        raise typer.Exit(1)
+
+    db_path = repo_path / ".axon-pro" / "kuzu"
+    storage = KuzuBackend()
+    storage.initialize(db_path)
+
+    console.print(f"[bold blue]Architectural Brief: {repo_path.name}[/bold blue]\n")
+
+    # 1. Core Models
+    models = storage.query("MATCH (c:class) WHERE c.bases CONTAINS 'Model' RETURN c.name AS name LIMIT 10")
+    if models:
+        console.print("[bold]Core Domain Models:[/bold]")
+        console.print("  " + ", ".join([m['name'] for m in models]))
+
+    # 2. Key Entry Points (Routes)
+    routes = storage.query("MATCH (r:route) RETURN r.name AS name LIMIT 5")
+    if routes:
+        console.print("\n[bold]Primary Entry Points:[/bold]")
+        for r in routes:
+            console.print(f"  - {r['name']}")
+
+    # 3. Message Handlers (Jobs/Events)
+    jobs = storage.query("MATCH (j:job) RETURN j.name AS name LIMIT 5")
+    if jobs:
+        console.print("\n[bold]Asynchronous Jobs:[/bold]")
+        for j in jobs:
+            console.print(f"  - {j['name']}")
+
+    # 4. Critical Dependencies (Most coupled files)
+    coupling = storage.query("MATCH (f1:file)-[r:coupled_with]->(f2:file) RETURN f1.name AS f1, f2.name AS f2 ORDER BY r.weight DESC LIMIT 3")
+    if coupling:
+        console.print("\n[bold]High-Risk Change Areas (Tightly Coupled):[/bold]")
+        for c in coupling:
+            console.print(f"  - {c['f1']} <--> {c['f2']}")
+
+    console.print("\n[dim]Use 'axon-pro context <symbol>' for deep-dives.[/dim]")
+    storage.close()
+
 @app.command(name="list")
 def list_repos() -> None:
     """List all indexed repositories."""

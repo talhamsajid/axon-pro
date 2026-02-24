@@ -15,6 +15,7 @@ SUPPORTED_EXTENSIONS: dict[str, str] = {
     ".php": "php",
     ".java": "java",
     ".cs": "csharp",
+    ".blade.php": "blade",
 }
 
 def get_language(file_path: str | Path) -> str | None:

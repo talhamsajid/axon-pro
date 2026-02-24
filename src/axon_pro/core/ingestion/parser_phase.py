@@ -44,6 +44,7 @@ _KIND_TO_LABEL: dict[str, NodeLabel] = {
     "policy": NodeLabel.POLICY,
     "form_request": NodeLabel.FORM_REQUEST,
     "middleware": NodeLabel.MIDDLEWARE,
+    "view": NodeLabel.VIEW,
 }
 
 @dataclass
@@ -104,6 +105,11 @@ def get_parser(language: str) -> LanguageParser:
         from axon_pro.core.parsers.csharp_lang import CSharpParser
 
         parser = CSharpParser()
+
+    elif language == "blade":
+        from axon_pro.core.parsers.blade import BladeParser
+
+        parser = BladeParser()
 
     else:
         raise ValueError(

@@ -50,8 +50,48 @@ def process_laravel(parse_data_list: list[FileParseData], graph: KnowledgeGraph)
     # 10. Middleware Linking
     _link_middleware(parse_data_list, graph)
 
-    # 11. Tracing Dispatches
+    # 11. Blade Template Linking
+    _link_blade_templates(parse_data_list, graph)
+
+    # 12. Tracing Dispatches
     _trace_laravel_dispatches(parse_data_list, graph)
+
+def _link_blade_templates(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
+    """Link Controllers to Views and Views to Components/Includes."""
+    for data in parse_data_list:
+        # Link View -> Component/Include
+        if data.language == "blade":
+            source_view_nodes = [n for n in graph.iter_nodes() if n.label == NodeLabel.VIEW and n.file_path == data.file_path]
+            if not source_view_nodes:
+                continue
+            source_view = source_view_nodes[0]
+            
+            for call in data.parse_result.calls:
+                if call.receiver in ["BladeComponent", "BladeInclude"]:
+                    # Find the target view or component
+                    target_name = call.name.replace("x-", "")
+                    target_nodes = [n for n in graph.iter_nodes() if n.label == NodeLabel.VIEW and (n.name == target_name or n.name.endswith(f".{target_name}"))]
+                    for tn in target_nodes:
+                        rel_id = f"includes:{source_view.id}->{tn.id}"
+                        graph.add_relationship(GraphRelationship(id=rel_id, type=RelType.INCLUDES, source=source_view.id, target=tn.id))
+
+        # Link Controller -> View (view('name') calls)
+        for call in data.parse_result.calls:
+            if call.name == "view" and not call.receiver:
+                if len(call.arguments) > 0:
+                    view_name = call.arguments[0].strip("'\"")
+                    # Find the method node containing this call
+                    source_method = None
+                    for node in graph.iter_nodes():
+                        if node.file_path == data.file_path and node.start_line <= call.line <= node.end_line:
+                            source_method = node
+                            break
+                    
+                    if source_method:
+                        target_views = [n for n in graph.iter_nodes() if n.label == NodeLabel.VIEW and n.name == view_name]
+                        for tv in target_views:
+                            rel_id = f"renders:{source_method.id}->{tv.id}"
+                            graph.add_relationship(GraphRelationship(id=rel_id, type=RelType.RENDERS, source=source_method.id, target=tv.id))
 
 def _link_middleware(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
     """Link Routes and Controllers to Middleware applied to them."""
