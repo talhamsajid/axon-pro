@@ -43,6 +43,7 @@ _KIND_TO_LABEL: dict[str, NodeLabel] = {
     "route": NodeLabel.ROUTE,
     "policy": NodeLabel.POLICY,
     "form_request": NodeLabel.FORM_REQUEST,
+    "middleware": NodeLabel.MIDDLEWARE,
 }
 
 @dataclass

@@ -39,6 +39,7 @@ class CallInfo:
     line: int
     receiver: str = ""  # for method calls: the object (e.g., "self", "user")
     arguments: list[str] = field(default_factory=list)  # bare identifier arguments (callbacks)
+    is_in_loop: bool = False
 
 @dataclass
 class TypeRef:

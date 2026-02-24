@@ -44,8 +44,90 @@ def process_laravel(parse_data_list: list[FileParseData], graph: KnowledgeGraph)
     # 8. Facade Resolution
     _resolve_facades(parse_data_list, graph)
 
-    # 9. Tracing Dispatches
+    # 9. N+1 Query Detection
+    _detect_n_plus_one_queries(parse_data_list, graph)
+
+    # 10. Middleware Linking
+    _link_middleware(parse_data_list, graph)
+
+    # 11. Tracing Dispatches
     _trace_laravel_dispatches(parse_data_list, graph)
+
+def _link_middleware(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
+    """Link Routes and Controllers to Middleware applied to them."""
+    for data in parse_data_list:
+        # Check for middleware() calls on Routes
+        if "routes/" in data.file_path:
+            for call in data.parse_result.calls:
+                if call.name == "middleware":
+                    # Route::middleware(['auth', ...])
+                    # Find the last created Route node (simplified heuristic)
+                    route_nodes = [n for n in graph.iter_nodes() if n.label == NodeLabel.ROUTE and n.file_path == data.file_path]
+                    if route_nodes:
+                        # Link to potential middleware (by name or alias)
+                        for arg in call.arguments:
+                            m_name = arg.strip("'\"")
+                            # Find middleware nodes
+                            m_nodes = [n for n in graph.iter_nodes() if n.label == NodeLabel.MIDDLEWARE and m_name in n.name]
+                            for rn in route_nodes:
+                                for mn in m_nodes:
+                                    rel_id = f"protected_by:{rn.id}->{mn.id}"
+                                    graph.add_relationship(GraphRelationship(id=rel_id, type=RelType.PROTECTED_BY, source=rn.id, target=mn.id))
+
+        # Check for $middleware property in Controllers
+        for symbol in data.parse_result.symbols:
+            if symbol.kind == "class" and ("Controller" in symbol.name):
+                # Look for calls to middleware() in __construct
+                for call in data.parse_result.calls:
+                    if call.name == "middleware" and call.line >= symbol.start_line and call.line <= symbol.end_line:
+                        # Controller-level middleware
+                        class_node_id = generate_id(NodeLabel.CLASS, data.file_path, symbol.name)
+                        for arg in call.arguments:
+                            m_name = arg.strip("'\"")
+                            m_nodes = [n for n in graph.iter_nodes() if n.label == NodeLabel.MIDDLEWARE and m_name in n.name]
+                            for mn in m_nodes:
+                                rel_id = f"protected_by:{class_node_id}->{mn.id}"
+                                graph.add_relationship(GraphRelationship(id=rel_id, type=RelType.PROTECTED_BY, source=class_node_id, target=mn.id))
+
+def _detect_n_plus_one_queries(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
+    """Detect potential N+1 query issues where Eloquent relations are called in loops."""
+    # List of known Eloquent relationship methods that trigger queries
+    rel_methods = ["hasMany", "belongsTo", "hasOne", "belongsToMany", "morphTo", "morphMany", "morphedByMany"]
+    
+    for data in parse_data_list:
+        for call in data.parse_result.calls:
+            # If a call is in a loop and looks like a relationship call
+            if call.is_in_loop:
+                # Heuristic: method name matches an Eloquent relationship or a property-like access
+                # that often triggers a query.
+                is_potential_n_plus_one = False
+                if call.name in rel_methods:
+                    is_potential_n_plus_one = True
+                
+                # Also check for common Model methods that trigger queries
+                if call.name in ["get", "first", "find", "all", "paginate"]:
+                    is_potential_n_plus_one = True
+
+                if is_potential_n_plus_one:
+                    # Find the symbol containing this call
+                    source_node = None
+                    for node in graph.iter_nodes():
+                        if node.file_path == data.file_path and node.start_line <= call.line <= node.end_line:
+                            source_node = node
+                            break
+                    
+                    if source_node:
+                        # We don't necessarily have a target node (dynamic call), 
+                        # so we mark the source node with a property or a self-relationship.
+                        # For now, let's add a property to the node.
+                        source_node.properties.setdefault("n_plus_one_warnings", []).append({
+                            "method": call.name,
+                            "line": call.line,
+                            "file": data.file_path
+                        })
+                        
+                        # Optionally add an issue node or similar
+                        pass
 
 def _link_container_bindings(parse_data_list: list[FileParseData], graph: KnowledgeGraph) -> None:
     """Link Interfaces to Concrete classes based on Service Container bindings."""

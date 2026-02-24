@@ -30,7 +30,7 @@ class PHPParser(LanguageParser):
         tree = self._parser.parse(bytes(content, "utf8"))
         result = ParseResult()
         root = tree.root_node
-        self._walk(root, content, result, class_name="")
+        self._walk(root, content, result, class_name="", in_loop=False)
         return result
 
     def _walk(
@@ -39,6 +39,7 @@ class PHPParser(LanguageParser):
         content: str,
         result: ParseResult,
         class_name: str,
+        in_loop: bool = False,
     ) -> None:
         """Recursively walk the AST to extract definitions."""
         for child in node.children:
@@ -52,17 +53,19 @@ class PHPParser(LanguageParser):
                 case "method_declaration":
                     self._extract_method(child, content, result, class_name)
                 case "namespace_definition":
-                    self._walk(child, content, result, class_name)
+                    self._walk(child, content, result, class_name, in_loop)
                 case "namespace_use_declaration":
                     self._extract_import(child, result)
                 case "function_call_expression":
-                    self._extract_call(child, result)
+                    self._extract_call(child, result, in_loop)
                 case "member_call_expression":
-                    self._extract_member_call(child, result)
+                    self._extract_member_call(child, result, in_loop)
                 case "scoped_call_expression":
-                    self._extract_scoped_call(child, result)
+                    self._extract_scoped_call(child, result, in_loop)
+                case "foreach_statement" | "for_statement" | "while_statement" | "do_statement":
+                    self._walk(child, content, result, class_name, in_loop=True)
                 case _:
-                    self._walk(child, content, result, class_name)
+                    self._walk(child, content, result, class_name, in_loop)
 
     def _extract_function(
         self,
@@ -96,6 +99,11 @@ class PHPParser(LanguageParser):
                 class_name=class_name,
             )
         )
+        
+        # Walk body of function
+        body = node.child_by_field_name("body")
+        if body:
+            self._walk(body, content, result, class_name=class_name, in_loop=False)
 
     def _extract_method(
         self,
@@ -129,6 +137,12 @@ class PHPParser(LanguageParser):
                 class_name=class_name,
             )
         )
+        
+        # Walk body of method
+        body = node.child_by_field_name("body")
+        if body:
+            self._walk(body, content, result, class_name=class_name, in_loop=False)
+
 
     def _extract_class(
         self,
@@ -180,6 +194,8 @@ class PHPParser(LanguageParser):
             kind = "policy"
         elif class_name.endswith("Request") or "FormRequest" in parents:
             kind = "form_request"
+        elif class_name.endswith("Middleware") or "Middleware" in parents:
+            kind = "middleware"
         elif class_name.endswith("ServiceProvider"):
             kind = "service_provider"
             is_sp = True
@@ -287,7 +303,7 @@ class PHPParser(LanguageParser):
                         )
                     )
 
-    def _extract_call(self, node: Node, result: ParseResult) -> None:
+    def _extract_call(self, node: Node, result: ParseResult, in_loop: bool = False) -> None:
         """Extract a function call."""
         name_node = node.child_by_field_name("function")
         args_node = node.child_by_field_name("arguments")
@@ -303,11 +319,12 @@ class PHPParser(LanguageParser):
                 CallInfo(
                     name=name,
                     line=node.start_point[0] + 1,
-                    arguments=args
+                    arguments=args,
+                    is_in_loop=in_loop
                 )
             )
 
-    def _extract_member_call(self, node: Node, result: ParseResult) -> None:
+    def _extract_member_call(self, node: Node, result: ParseResult, in_loop: bool = False) -> None:
         """Extract a member call ($obj->method())."""
         name_node = node.child_by_field_name("name")
         obj_node = node.child_by_field_name("object")
@@ -326,11 +343,12 @@ class PHPParser(LanguageParser):
                     name=name,
                     line=node.start_point[0] + 1,
                     receiver=receiver,
-                    arguments=args
+                    arguments=args,
+                    is_in_loop=in_loop
                 )
             )
 
-    def _extract_scoped_call(self, node: Node, result: ParseResult) -> None:
+    def _extract_scoped_call(self, node: Node, result: ParseResult, in_loop: bool = False) -> None:
         """Extract a scoped call (Class::method())."""
         name_node = node.child_by_field_name("name")
         scope_node = node.child_by_field_name("scope")
@@ -349,6 +367,7 @@ class PHPParser(LanguageParser):
                     name=name,
                     line=node.start_point[0] + 1,
                     receiver=receiver,
-                    arguments=args
+                    arguments=args,
+                    is_in_loop=in_loop
                 )
             )
