@@ -55,7 +55,7 @@ dev = [
 axon-pro = "axon_pro.cli.main:app"
 
 [tool.uv.build-backend]
-module-name = "axon"
+module-name = "axon_pro"
 
 
 [build-system]
