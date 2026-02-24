@@ -33,6 +33,13 @@ _KIND_TO_LABEL: dict[str, NodeLabel] = {
     "interface": NodeLabel.INTERFACE,
     "type_alias": NodeLabel.TYPE_ALIAS,
     "enum": NodeLabel.ENUM,
+    "job": NodeLabel.JOB,
+    "command": NodeLabel.COMMAND,
+    "migration": NodeLabel.MIGRATION,
+    "observer": NodeLabel.OBSERVER,
+    "event": NodeLabel.EVENT,
+    "listener": NodeLabel.LISTENER,
+    "service_provider": NodeLabel.SERVICE_PROVIDER,
 }
 
 @dataclass

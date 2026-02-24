@@ -24,6 +24,13 @@ class NodeLabel(Enum):
     ENUM = "enum"
     COMMUNITY = "community"
     PROCESS = "process"
+    JOB = "job"
+    COMMAND = "command"
+    MIGRATION = "migration"
+    OBSERVER = "observer"
+    EVENT = "event"
+    LISTENER = "listener"
+    SERVICE_PROVIDER = "service_provider"
 
 class RelType(Enum):
     """Relationship types connecting graph nodes."""
