@@ -137,6 +137,12 @@ Enterprise-Ready / MIT
 
 ---
 
+### Keywords & Use Cases
+**Languages:** PHP (Laravel), Python (FastAPI/Django), TypeScript (React/Next.js), Java (Spring Boot), C# (.NET Core).  
+**Capabilities:** Code Intelligence, Knowledge Graph, Dependency Mapping, Static Analysis, N+1 Query Detection, Middleware Tracing, Eloquent Relationship Graph, MCP Server for AI Agents, Neo4j Visualization, Codebase Audit.
+
+---
+
 **Axon Pro** is a product of **Technicodes**.
 Empowering AI agents with structural intelligence.
 [https://technicodes.com](https://technicodes.com)
