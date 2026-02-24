@@ -1,133 +1,144 @@
-# Axon Pro
+# Axon Pro 🚀
 
-**The Enterprise-grade graph-powered code intelligence engine** — indexes your entire polyglot codebase into a knowledge graph and exposes it via MCP tools for AI agents and a CLI for developers.
+[![Release](https://img.shields.io/github/v/release/talhamsajid/axon-pro?include_prereleases)](https://github.com/talhamsajid/axon-pro/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Homebrew](https://img.shields.io/badge/Install-Homebrew-orange.svg)](https://github.com/talhamsajid/homebrew-tap)
+
+**The Enterprise-grade graph-powered code intelligence engine.** Axon Pro transforms flat codebases into structural knowledge graphs, providing AI agents and developers with 100% precise architectural awareness across polyglot microservices and modern web frameworks.
 
 ```bash
-axon analyze .
+axon-pro analyze .
 
 Phase 1:  Walking files...               1,242 files found
 Phase 3:  Parsing code...                1,242/1,242
 Phase 5:  Tracing calls...               8,472 calls resolved
 Phase 7:  Analyzing types...             2,341 type relationships
-Phase 8:  Detecting communities...       42 clusters found
 Phase 9:  Detecting execution flows...   156 processes found
-Phase 10: Finding dead code...           87 unreachable symbols
-Phase 11: Analyzing git history...       148 coupled file pairs
+Phase 12: Linking Laravel Templates...   42 views connected
 
-Done in 12.4s — 4,623 symbols, 15,847 edges, 42 clusters, 156 flows
+Done in 12.4s — 4,623 symbols, 15,847 edges, 156 flows
 ```
-
-Axon Pro transforms your codebase from flat text into a **structural knowledge graph**. By parsing Python, TypeScript, JavaScript, **PHP (Laravel)**, **Java**, and **C# (.NET)**, it builds a deep understanding of how your services interact, how data flows, and where your architectural risks lie.
 
 ---
 
-## Why Axon Pro?
+## 💎 Why Axon Pro?
 
 **For AI Agents (Claude Code, Cursor, Windsurf):**
-- **Deep Polyglot Support:** Understands cross-language dependencies in microservices.
-- **Architectural Awareness:** "What breaks if I change this Java interface?" → Instant blast radius across the entire graph.
-- **Flow Tracing:** "Show me the full request lifecycle from the PHP frontend to the Python backend."
-- **Precision Search:** Hybrid search (BM25 + Vector + RRF) ensures the agent finds the *correct* symbol, not just the most similar text.
+- **Deep Polyglot Support:** Understands cross-language dependencies (PHP, Python, Java, TS).
+- **High-Fidelity Context:** Moves beyond "text similarity" to "structural truth."
+- **Architectural Awareness:** AI agents can finally see the "blast radius" of their changes.
+- **Flow Tracing:** Traces execution from a Route, through Middleware, into a Controller, and out to a View or Background Job.
 
 **For Engineering Teams:**
-- **Zero Cloud Footprint:** Everything runs locally on your infrastructure. No data leakage, no API costs.
-- **Refactoring Safety:** Automated impact analysis before you touch legacy code.
-- **Onboarding Acceleration:** New devs can query the codebase structure using natural language or Cypher.
-- **Technical Debt Management:** Automatically find dead code and tightly coupled files.
+- **Zero Cloud Footprint:** Runs locally. No data leakage, no third-party API costs.
+- **Refactoring Safety:** Instant impact analysis for complex legacy codebases.
+- **Onboarding Speed:** New developers can query the architecture using natural language or Cypher.
+- **Technical Debt Audit:** Automatically identifies dead code, N+1 queries, and tight coupling.
 
 ---
 
-## Multi-Language Support
+## 🧠 Elite Laravel IQ
 
-Axon Pro is built for the modern enterprise stack:
+Axon Pro is the only code intelligence engine with native, semantic awareness of the Laravel ecosystem:
 
-| Language | Extensions | Framework Support |
-|----------|-----------|-------------------|
-| **Python** | `.py` | Flask, FastAPI, Django, Click |
-| **TypeScript** | `.ts`, `.tsx` | React, Next.js, NestJS |
-| **JavaScript** | `.js`, `.jsx`, `.mjs`, `.cjs` | Express, Node.js |
-| **PHP** | `.php` | Laravel, Symfony, WordPress |
-| **Java** | `.java` | Spring Boot, Jakarta EE |
-| **C#** | `.cs` | .NET Core, ASP.NET, Unity |
+- **Eloquent Relationships:** Automatically maps `hasMany`, `belongsTo`, and polymorphic links.
+- **Route-to-Code Mapping:** Links HTTP routes directly to their Controller methods.
+- **Messaging Lifecycle:** Traces Events → Listeners and Job → Queue dispatches.
+- **Security Audit:** Maps Middleware chains and connects actions to their Laravel Policies.
+- **Blade Intelligence:** Bridges the gap between PHP logic and `.blade.php` templates.
+- **Container Resolution:** Resolves Interface injections to their concrete Service Provider bindings.
 
 ---
 
-## Core Capabilities
+## 🛠️ Installation
 
-### 11-Phase Analysis Pipeline
-Axon Pro executes a deep structural audit of your repository:
-1. **File Walking:** Respects `.gitignore` and enterprise-level ignore patterns.
-2. **Structure:** Maps the File/Folder hierarchy with `CONTAINS` relationships.
-3. **Parsing:** High-performance tree-sitter AST extraction for all supported languages.
-4. **Import Resolution:** Resolves namespaces, imports, and use statements across files.
-5. **Call Tracing:** Maps the dynamic call graph with multi-language confidence scoring.
-6. **Heritage:** Tracks class inheritance (`EXTENDS`) and interface implementation (`IMPLEMENTS`).
-7. **Type Analysis:** Extracts type references from signatures and variable annotations.
-8. **Community Detection:** Uses the **Leiden algorithm** to cluster related code into functional modules.
-9. **Process Detection:** Detects entry points (API routes, CLI commands) and traces execution flows.
-10. **Dead Code Detection:** Intelligent multi-pass analysis that understands overrides and protocols.
-11. **Change Coupling:** Analyzes Git history to find hidden dependencies between files.
-
----
-
-## Installation
-
+### Homebrew (Recommended)
 ```bash
-# With pip
-pip install axon-pro
-
-# With uv (recommended)
-uv tool install axon-pro
+brew install talhamsajid/tap/axon-pro
 ```
 
-Requires **Python 3.11+**.
+### With UV (Fastest)
+```bash
+uv tool install axon-pro[neo4j]
+```
+
+### With PIP
+```bash
+pip install axon-pro[neo4j]
+```
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
-### 1. Index Your Codebase
+### 1. Index Your Project
 ```bash
 cd your-polyglot-repo
-axon analyze .
+axon-pro analyze .
 ```
 
-### 2. Deep Context Query
+### 2. Run an Architectural Audit
+Flag N+1 queries and boundary violations instantly.
 ```bash
-# Get a 360-degree view of a Spring Boot controller or Laravel service
-axon context UserService
+axon-pro check
 ```
 
-### 3. Impact Analysis
+### 3. Get a Codebase Briefing
+Generate a high-level "map" for your next coding session.
 ```bash
-# See what breaks if you change a core C# interface
-axon impact IRepository --depth 4
+axon-pro brief
 ```
 
-### 4. Live Watch Mode
+### 4. Deep Symbol Context
+See callers, views rendered, and security policies for any class.
 ```bash
-# Keep the graph in sync with your edits
-axon watch
+axon-pro context OrderController
 ```
 
 ---
 
-## MCP Integration
+## 🖼️ Enterprise Visualization (Neo4j)
 
-Axon Pro is designed to be the "brain" for your AI coding assistants.
+Export your codebase graph to **Neo4j** for world-class interactive visualization using Neo4j Bloom or the Browser.
 
-### Setup for AI Agents
 ```bash
-axon setup --claude
-axon setup --cursor
+# Export to a local Neo4j Docker instance
+axon-pro analyze . --neo4j --neo4j-url bolt://localhost:7687
 ```
 
-This adds Axon Pro as an MCP server, giving your agent access to:
-- `axon_query`: Semantic and structural search.
-- `axon_context`: Deep symbol relationship view.
-- `axon_impact`: Automated blast-radius analysis.
-- `axon_dead_code`: Technical debt identification.
-- `axon_cypher`: Direct graph querying for complex architectural questions.
+**Cypher Audit Examples:**
+```cypher
+// Find all entry points protected by 'auth' middleware
+MATCH (r:Route)-[:PROTECTED_BY]->(m:Middleware {name: 'auth'}) RETURN r.name
+
+// View the blast radius of changing a specific Model
+MATCH (m:Class {name: 'User'})-[:RELATIONSHIP_TO]->(target) RETURN m, target
+```
+
+---
+
+## 🤖 AI Agent Integration (MCP)
+
+Axon Pro exposes its intelligence via the **Model Context Protocol (MCP)**. Give your agent the structural "brain" it needs to stop making guessing errors.
+
+```bash
+axon-pro setup --claude
+axon-pro setup --cursor
+```
+
+---
+
+## 📜 Multi-Language Support
+
+| Language | Extensions | Framework Awareness |
+|----------|-----------|-------------------|
+| **PHP** | `.php`, `.blade.php` | **Laravel**, Symfony |
+| **Python** | `.py` | Flask, FastAPI, Django |
+| **TypeScript** | `.ts`, `.tsx` | React, Next.js, NestJS |
+| **JavaScript** | `.js`, `.jsx` | Express, Node.js |
+| **Java** | `.java` | Spring Boot |
+| **C#** | `.cs` | .NET Core, Unity |
 
 ---
 
@@ -138,11 +149,10 @@ Enterprise-Ready / MIT
 ---
 
 ### Keywords & Use Cases
-**Languages:** PHP (Laravel), Python (FastAPI/Django), TypeScript (React/Next.js), Java (Spring Boot), C# (.NET Core).  
-**Capabilities:** Code Intelligence, Knowledge Graph, Dependency Mapping, Static Analysis, N+1 Query Detection, Middleware Tracing, Eloquent Relationship Graph, MCP Server for AI Agents, Neo4j Visualization, Codebase Audit.
+Code Intelligence, Knowledge Graph, Dependency Mapping, Static Analysis, N+1 Query Detection, Middleware Tracing, Eloquent Relationship Graph, MCP Server for AI Agents, Neo4j Visualization, Codebase Audit, Laravel Architecture, Polyglot Analysis.
 
 ---
 
-**Axon Pro** is a product of **Technicodes**.
-Empowering AI agents with structural intelligence.
+**Axon Pro** is a product of **Technicodes**.  
+*Empowering AI agents with structural intelligence.*  
 [https://technicodes.com](https://technicodes.com)
