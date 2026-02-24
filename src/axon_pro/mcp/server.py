@@ -24,9 +24,9 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Resource, TextContent, Tool
 
-from axon_pro_pro.core.storage.kuzu_backend import KuzuBackend
-from axon_pro_pro.mcp.resources import get_dead_code_list, get_overview, get_schema
-from axon_pro_pro.mcp.tools import (
+from axon_pro.core.storage.kuzu_backend import KuzuBackend
+from axon_pro.mcp.resources import get_dead_code_list, get_overview, get_schema
+from axon_pro.mcp.tools import (
     handle_context,
     handle_cypher,
     handle_dead_code,
