@@ -1,0 +1,74 @@
+[project]
+name = "axon-pro"
+version = "0.3.0"
+description = "Enterprise-grade graph-powered code intelligence engine with support for Python, JS/TS, PHP, Java, and C#."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Technicodes", email = "info@technicodes.com" }
+]
+keywords = ["code-intelligence", "knowledge-graph", "mcp", "tree-sitter", "static-analysis", "php", "java", "csharp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.15.0",
+    "rich>=13.0.0",
+    "tree-sitter>=0.25.0",
+    "tree-sitter-python>=0.23.0",
+    "tree-sitter-javascript>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
+    "tree-sitter-php>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+    "tree-sitter-c-sharp>=0.23.0",
+    "kuzu>=0.11.0",
+    "igraph>=1.0.0",
+    "leidenalg>=0.11.0",
+    "fastembed>=0.7.0",
+    "mcp>=1.0.0",
+    "watchfiles>=1.0.0",
+    "pathspec>=1.0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/technicodes/axon-pro"
+Repository = "https://github.com/technicodes/axon-pro"
+Issues = "https://github.com/technicodes/axon-pro/issues"
+
+[project.optional-dependencies]
+neo4j = ["neo4j>=5.0.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.0",
+]
+
+[project.scripts]
+axon-pro = "axon_pro.cli.main:app"
+
+[tool.uv.build-backend]
+module-name = "axon"
+
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

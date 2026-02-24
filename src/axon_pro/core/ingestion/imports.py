@@ -1,0 +1,256 @@
+"""Phase 4: Import resolution for Axon.
+
+Takes the FileParseData produced by the parsing phase and resolves import
+statements to actual File nodes in the knowledge graph, creating IMPORTS
+relationships between the importing file and the target file.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import PurePosixPath
+
+from axon_pro.core.graph.graph import KnowledgeGraph
+from axon_pro.core.graph.model import (
+    GraphRelationship,
+    NodeLabel,
+    RelType,
+    generate_id,
+)
+from axon_pro.core.ingestion.parser_phase import FileParseData
+from axon_pro.core.parsers.base import ImportInfo
+
+logger = logging.getLogger(__name__)
+
+_JS_TS_EXTENSIONS = (".ts", ".js", ".tsx", ".jsx")
+
+def build_file_index(graph: KnowledgeGraph) -> dict[str, str]:
+    """Build an index mapping file paths to their graph node IDs.
+
+    Iterates over all :pyclass:`NodeLabel.FILE` nodes in the graph and
+    returns a dict keyed by ``file_path`` with node ``id`` as value.
+
+    Args:
+        graph: The knowledge graph containing File nodes.
+
+    Returns:
+        A dict like ``{"src/auth/validate.py": "file:src/auth/validate.py:"}``.
+    """
+    file_nodes = graph.get_nodes_by_label(NodeLabel.FILE)
+    return {node.file_path: node.id for node in file_nodes}
+
+def resolve_import_path(
+    importing_file: str,
+    import_info: ImportInfo,
+    file_index: dict[str, str],
+) -> str | None:
+    """Resolve an import statement to the target file's node ID.
+
+    Uses the importing file's path, the parsed :class:`ImportInfo`, and the
+    index of all known project files to determine which file is being
+    imported.  Returns ``None`` for external/unresolvable imports.
+
+    Args:
+        importing_file: Relative path of the file containing the import
+            (e.g. ``"src/auth/validate.py"``).
+        import_info: The parsed import information.
+        file_index: Mapping of relative file paths to their graph node IDs.
+
+    Returns:
+        The node ID of the resolved target file, or ``None`` if the import
+        cannot be resolved to a file in the project.
+    """
+    language = _detect_language(importing_file)
+
+    if language == "python":
+        return _resolve_python(importing_file, import_info, file_index)
+    if language in ("typescript", "javascript"):
+        return _resolve_js_ts(importing_file, import_info, file_index)
+
+    return None
+
+def process_imports(
+    parse_data: list[FileParseData],
+    graph: KnowledgeGraph,
+) -> None:
+    """Resolve imports and create IMPORTS relationships in the graph.
+
+    For each file's parsed imports, resolves the target file and creates
+    an ``IMPORTS`` relationship from the importing file node to the target
+    file node.  Duplicate edges (same source -> same target) are skipped.
+
+    Args:
+        parse_data: Parse results from the parsing phase.
+        graph: The knowledge graph to populate with IMPORTS relationships.
+    """
+    file_index = build_file_index(graph)
+    seen: set[tuple[str, str]] = set()
+
+    for fpd in parse_data:
+        source_file_id = generate_id(NodeLabel.FILE, fpd.file_path)
+
+        for imp in fpd.parse_result.imports:
+            target_id = resolve_import_path(fpd.file_path, imp, file_index)
+            if target_id is None:
+                continue
+
+            pair = (source_file_id, target_id)
+            if pair in seen:
+                continue
+            seen.add(pair)
+
+            rel_id = f"imports:{source_file_id}->{target_id}"
+            graph.add_relationship(
+                GraphRelationship(
+                    id=rel_id,
+                    type=RelType.IMPORTS,
+                    source=source_file_id,
+                    target=target_id,
+                    properties={"symbols": ",".join(imp.names)},
+                )
+            )
+
+def _detect_language(file_path: str) -> str:
+    """Infer language from a file's extension."""
+    suffix = PurePosixPath(file_path).suffix.lower()
+    if suffix == ".py":
+        return "python"
+    if suffix in (".ts", ".tsx"):
+        return "typescript"
+    if suffix in (".js", ".jsx"):
+        return "javascript"
+    return ""
+
+def _resolve_python(
+    importing_file: str,
+    import_info: ImportInfo,
+    file_index: dict[str, str],
+) -> str | None:
+    """Resolve a Python import to a file node ID.
+
+    Handles:
+    - Relative imports (``is_relative=True``): dot-prefixed module paths
+      resolved relative to the importing file's directory.
+    - Absolute imports: treated as dotted paths from the project root.
+
+    Returns ``None`` for external (not in file_index) imports.
+    """
+    if import_info.is_relative:
+        return _resolve_python_relative(importing_file, import_info, file_index)
+    return _resolve_python_absolute(import_info, file_index)
+
+def _resolve_python_relative(
+    importing_file: str,
+    import_info: ImportInfo,
+    file_index: dict[str, str],
+) -> str | None:
+    """Resolve a relative Python import (``from .foo import bar``).
+
+    The number of leading dots determines how many directory levels to
+    traverse upward from the importing file's parent directory.
+
+    ``from .utils import helper``  -> one dot  -> same directory
+    ``from ..models import User``  -> two dots -> parent directory
+    """
+    module = import_info.module
+
+    dot_count = 0
+    for ch in module:
+        if ch == ".":
+            dot_count += 1
+        else:
+            break
+
+    remainder = module[dot_count:]
+
+    base = PurePosixPath(importing_file).parent
+    for _ in range(dot_count - 1):
+        base = base.parent
+
+    if remainder:
+        segments = remainder.split(".")
+        target_dir = base / PurePosixPath(*segments)
+    else:
+        target_dir = base
+
+    return _try_python_paths(str(target_dir), file_index)
+
+def _resolve_python_absolute(
+    import_info: ImportInfo,
+    file_index: dict[str, str],
+) -> str | None:
+    """Resolve an absolute Python import (``from mypackage.auth import validate``).
+
+    Converts the dotted module path to a filesystem path and looks it up
+    in the file index.  Returns ``None`` for external packages not present
+    in the project.
+    """
+    module = import_info.module
+    segments = module.split(".")
+    target_path = str(PurePosixPath(*segments))
+    return _try_python_paths(target_path, file_index)
+
+def _try_python_paths(base_path: str, file_index: dict[str, str]) -> str | None:
+    """Try common Python file resolution patterns for *base_path*.
+
+    Checks in order:
+    1. ``base_path.py`` (direct module file)
+    2. ``base_path/__init__.py`` (package directory)
+    """
+    candidates = [
+        f"{base_path}.py",
+        f"{base_path}/__init__.py",
+    ]
+    for candidate in candidates:
+        if candidate in file_index:
+            return file_index[candidate]
+    return None
+
+def _resolve_js_ts(
+    importing_file: str,
+    import_info: ImportInfo,
+    file_index: dict[str, str],
+) -> str | None:
+    """Resolve a JavaScript/TypeScript import to a file node ID.
+
+    Relative imports (starting with ``./`` or ``../``) are resolved against
+    the importing file's directory.  Bare specifiers (e.g. ``'express'``)
+    are treated as external and return ``None``.
+    """
+    module = import_info.module
+
+    if not module.startswith("."):
+        return None
+
+    base = PurePosixPath(importing_file).parent
+    resolved = base / module
+
+    resolved_str = str(PurePosixPath(*resolved.parts))
+
+    return _try_js_ts_paths(resolved_str, file_index)
+
+def _try_js_ts_paths(base_path: str, file_index: dict[str, str]) -> str | None:
+    """Try common JS/TS file resolution patterns for *base_path*.
+
+    Checks in order:
+    1. ``base_path`` as-is (already has extension)
+    2. ``base_path`` + each known extension (.ts, .js, .tsx, .jsx)
+    3. ``base_path/index`` + each known extension
+    """
+    # 1. Exact match (import already includes extension).
+    if base_path in file_index:
+        return file_index[base_path]
+
+    # 2. Try appending extensions.
+    for ext in _JS_TS_EXTENSIONS:
+        candidate = f"{base_path}{ext}"
+        if candidate in file_index:
+            return file_index[candidate]
+
+    # 3. Try as directory with index file.
+    for ext in _JS_TS_EXTENSIONS:
+        candidate = f"{base_path}/index{ext}"
+        if candidate in file_index:
+            return file_index[candidate]
+
+    return None

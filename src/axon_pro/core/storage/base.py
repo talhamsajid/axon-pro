@@ -1,0 +1,121 @@
+"""Storage backend abstraction for Axon.
+
+Defines the :class:`StorageBackend` protocol that all concrete storage
+implementations (KuzuDB, Neo4j, in-memory, etc.) must satisfy, along with
+supporting data classes for search results and embeddings.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
+
+from axon_pro.core.graph.graph import KnowledgeGraph
+from axon_pro.core.graph.model import GraphNode, GraphRelationship
+
+@dataclass
+class SearchResult:
+    """A single result from a full-text or vector search."""
+
+    node_id: str
+    score: float
+    node_name: str = ""
+    file_path: str = ""
+    label: str = ""
+    snippet: str = ""
+
+@dataclass
+class NodeEmbedding:
+    """An embedding vector associated with a graph node."""
+
+    node_id: str
+    embedding: list[float] = field(default_factory=list)
+
+@runtime_checkable
+class StorageBackend(Protocol):
+    """Protocol that every Axon storage backend must implement.
+
+    Covers the full lifecycle of graph persistence: initialisation,
+    CRUD operations on nodes and relationships, querying, full-text
+    search, vector search, and incremental re-indexing support.
+    """
+
+    def initialize(self, path: Path) -> None:
+        """Open or create the backing store at *path*."""
+        ...
+
+    def close(self) -> None:
+        """Release resources held by the backend."""
+        ...
+
+    def add_nodes(self, nodes: list[GraphNode]) -> None:
+        """Insert or upsert a batch of nodes."""
+        ...
+
+    def add_relationships(self, rels: list[GraphRelationship]) -> None:
+        """Insert or upsert a batch of relationships."""
+        ...
+
+    def remove_nodes_by_file(self, file_path: str) -> int:
+        """Remove all nodes originating from *file_path*.
+
+        Returns:
+            The number of nodes removed.
+        """
+        ...
+
+    def get_node(self, node_id: str) -> GraphNode | None:
+        """Return a single node by ID, or ``None`` if not found."""
+        ...
+
+    def get_callers(self, node_id: str) -> list[GraphNode]:
+        """Return nodes that call the node identified by *node_id*."""
+        ...
+
+    def get_callees(self, node_id: str) -> list[GraphNode]:
+        """Return nodes called by the node identified by *node_id*."""
+        ...
+
+    def get_type_refs(self, node_id: str) -> list[GraphNode]:
+        """Return nodes that reference the type identified by *node_id*."""
+        ...
+
+    def traverse(self, start_id: str, depth: int, direction: str = "callers") -> list[GraphNode]:
+        """Breadth-first traversal up to *depth* hops from *start_id*.
+
+        Args:
+            direction: ``"callers"`` follows incoming CALLS (blast radius),
+                       ``"callees"`` follows outgoing CALLS (dependencies).
+        """
+        ...
+
+    def execute_raw(self, query: str) -> Any:
+        """Execute a raw backend-specific query string."""
+        ...
+
+    def fts_search(self, query: str, limit: int) -> list[SearchResult]:
+        """Full-text search across indexed node content."""
+        ...
+
+    def fuzzy_search(
+        self, query: str, limit: int, max_distance: int = 2
+    ) -> list[SearchResult]:
+        """Fuzzy name search by edit distance."""
+        ...
+
+    def store_embeddings(self, embeddings: list[NodeEmbedding]) -> None:
+        """Persist embedding vectors for the given nodes."""
+        ...
+
+    def vector_search(self, vector: list[float], limit: int) -> list[SearchResult]:
+        """Find the closest nodes to *vector* by cosine similarity."""
+        ...
+
+    def get_indexed_files(self) -> dict[str, str]:
+        """Return a mapping of ``{file_path: content_hash}`` for all indexed files."""
+        ...
+
+    def bulk_load(self, graph: KnowledgeGraph) -> None:
+        """Replace the entire store contents with *graph*."""
+        ...
