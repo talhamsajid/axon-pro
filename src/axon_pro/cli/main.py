@@ -17,6 +17,27 @@ from axon_pro import __version__
 
 console = Console(stderr=True)
 
+def _find_repo_root(start_path: Path) -> Path:
+    """Find the repository root by looking for .axon-pro or .git upwards.
+    
+    If neither is found, returns the start_path if writable, otherwise
+    falls back to a safe location or errors out.
+    """
+    curr = start_path.resolve()
+    # Search upwards for .axon-pro or .git
+    for parent in [curr] + list(curr.parents):
+        if (parent / ".axon-pro").is_dir() or (parent / ".git").is_dir():
+            return parent
+            
+    # Fallback to start_path if it's not root
+    if str(curr) == "/":
+        # We are at root and found no repo. This is likely a misconfiguration.
+        console.print("[red]Error:[/red] Cannot run Axon Pro from the root directory ('/').")
+        console.print("Please run it from within a project directory.")
+        raise typer.Exit(code=1)
+        
+    return curr
+
 def _load_storage(repo_path: Path | None = None) -> "KuzuBackend":  # noqa: F821
     """Load the KuzuDB backend for the given or current repo."""
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
@@ -71,7 +92,7 @@ def analyze(
     from axon_pro.core.ingestion.pipeline import PipelineResult, run_pipeline
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
 
-    repo_path = path.resolve()
+    repo_path = _find_repo_root(path)
     if not repo_path.is_dir():
         console.print(f"[red]Error:[/red] {repo_path} is not a directory.")
         raise typer.Exit(code=1)
@@ -79,7 +100,13 @@ def analyze(
     console.print(f"[bold]Indexing[/bold] {repo_path}")
 
     axon_dir = repo_path / ".axon-pro"
-    axon_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        axon_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        console.print(f"[red]Error:[/red] Could not create {axon_dir}: {e}")
+        console.print("Ensure you have write permissions in this directory.")
+        raise typer.Exit(code=1)
+        
     db_path = axon_dir / "kuzu"
 
     if neo4j:
@@ -147,7 +174,7 @@ def analyze(
 @app.command()
 def status() -> None:
     """Show index status for current repository."""
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     meta_path = repo_path / ".axon-pro" / "meta.json"
 
     if not meta_path.exists():
@@ -180,7 +207,7 @@ def check() -> None:
     """Run architectural linting rules against the knowledge graph."""
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
     
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     meta_path = repo_path / ".axon-pro" / "meta.json"
     if not meta_path.exists():
         console.print("[red]Error:[/red] No index found. Run 'axon-pro analyze' first.")
@@ -229,7 +256,7 @@ def brief() -> None:
     """Generate a high-level architectural brief of the codebase."""
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
     
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     meta_path = repo_path / ".axon-pro" / "meta.json"
     if not meta_path.exists():
         console.print("[red]Error:[/red] No index found. Run 'axon-pro analyze' first.")
@@ -284,7 +311,7 @@ def clean(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt."),
 ) -> None:
     """Delete index for current repository."""
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     axon_dir = repo_path / ".axon-pro"
 
     if not axon_dir.exists():
@@ -390,9 +417,15 @@ def watch() -> None:
     from axon_pro.core.ingestion.watcher import watch_repo
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
 
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     axon_dir = repo_path / ".axon-pro"
-    axon_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        axon_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        console.print(f"[red]Error:[/red] Could not create {axon_dir}: {e}")
+        console.print("Ensure you have write permissions in this directory.")
+        raise typer.Exit(code=1)
+        
     db_path = axon_dir / "kuzu"
 
     storage = KuzuBackend()
@@ -418,7 +451,7 @@ def diff(
     """Structural branch comparison."""
     from axon_pro.core.diff import diff_branches, format_diff
 
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     try:
         result = diff_branches(repo_path, branch_range)
     except (ValueError, RuntimeError) as exc:
@@ -454,9 +487,15 @@ def serve(
     from axon_pro.core.ingestion.watcher import watch_repo
     from axon_pro.core.storage.kuzu_backend import KuzuBackend
 
-    repo_path = Path.cwd().resolve()
+    repo_path = _find_repo_root(Path.cwd())
     axon_dir = repo_path / ".axon-pro"
-    axon_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        axon_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        console.print(f"[red]Error:[/red] Could not create {axon_dir}: {e}")
+        console.print("Ensure you have write permissions in this directory.")
+        raise typer.Exit(code=1)
+        
     db_path = axon_dir / "kuzu"
 
     storage = KuzuBackend()

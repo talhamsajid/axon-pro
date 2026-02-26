@@ -67,22 +67,29 @@ def set_lock(lock: asyncio.Lock) -> None:
 
 
 def _get_storage() -> KuzuBackend:
-    """Lazily initialise and return the KuzuDB storage backend.
+    \"\"\"Lazily initialise and return the KuzuDB storage backend.
 
-    Looks for a ``.axon-pro/kuzu`` directory in the current working directory.
-    If it exists, the backend is initialised from that path.  Otherwise a
-    bare (uninitialised) backend is returned so that tools can still be
-    called without crashing.
-    """
+    Searches upwards from the current directory for a ``.axon-pro/kuzu`` 
+    database. If found, the backend is initialised from that path.
+    \"\"\"
     global _storage  # noqa: PLW0603
     if _storage is None:
         _storage = KuzuBackend()
-        db_path = Path.cwd() / ".axon-pro" / "kuzu"
-        if db_path.exists():
+        
+        # Search upwards for .axon-pro
+        curr = Path.cwd().resolve()
+        db_path = None
+        for parent in [curr] + list(curr.parents):
+            candidate = parent / \".axon-pro\" / \"kuzu\"
+            if candidate.exists():
+                db_path = candidate
+                break
+                
+        if db_path:
             _storage.initialize(db_path, read_only=True)
-            logger.info("Initialised storage (read-only) from %s", db_path)
+            logger.info(\"Initialised storage (read-only) from %s\", db_path)
         else:
-            logger.warning("No .axon-pro/kuzu directory found in %s", Path.cwd())
+            logger.warning(\"No .axon-pro/kuzu directory found in %s or its parents\", Path.cwd())
     return _storage
 
 TOOLS: list[Tool] = [
