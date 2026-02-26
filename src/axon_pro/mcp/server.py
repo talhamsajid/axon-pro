@@ -67,11 +67,11 @@ def set_lock(lock: asyncio.Lock) -> None:
 
 
 def _get_storage() -> KuzuBackend:
-    \"\"\"Lazily initialise and return the KuzuDB storage backend.
+    """Lazily initialise and return the KuzuDB storage backend.
 
     Searches upwards from the current directory for a ``.axon-pro/kuzu`` 
     database. If found, the backend is initialised from that path.
-    \"\"\"
+    """
     global _storage  # noqa: PLW0603
     if _storage is None:
         _storage = KuzuBackend()
@@ -80,16 +80,16 @@ def _get_storage() -> KuzuBackend:
         curr = Path.cwd().resolve()
         db_path = None
         for parent in [curr] + list(curr.parents):
-            candidate = parent / \".axon-pro\" / \"kuzu\"
+            candidate = parent / ".axon-pro" / "kuzu"
             if candidate.exists():
                 db_path = candidate
                 break
                 
         if db_path:
             _storage.initialize(db_path, read_only=True)
-            logger.info(\"Initialised storage (read-only) from %s\", db_path)
+            logger.info("Initialised storage (read-only) from %s", db_path)
         else:
-            logger.warning(\"No .axon-pro/kuzu directory found in %s or its parents\", Path.cwd())
+            logger.warning("No .axon-pro/kuzu directory found in %s or its parents", Path.cwd())
     return _storage
 
 TOOLS: list[Tool] = [
@@ -163,7 +163,7 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="axon_pro_dead_code",
-        description="List all symbols detected as dead (unreachable) code.",
+        description="List all detected dead code in the repository.",
         inputSchema={
             "type": "object",
             "properties": {},
@@ -172,15 +172,15 @@ TOOLS: list[Tool] = [
     Tool(
         name="axon_pro_detect_changes",
         description=(
-            "Parse a git diff and map changed files/lines to affected symbols "
-            "in the knowledge graph."
+            "Analyse code changes in a diff and find affected symbols. "
+            "Helps understand the impact of recent modifications."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "diff": {
                     "type": "string",
-                    "description": "Raw git diff output.",
+                    "description": "The git diff to analyse.",
                 },
             },
             "required": ["diff"],
@@ -194,7 +194,7 @@ TOOLS: list[Tool] = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Cypher query string.",
+                    "description": "Cypher query to execute.",
                 },
             },
             "required": ["query"],
@@ -202,13 +202,13 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="axon_pro_file_context",
-        description="Get a detailed breakdown of a file's context, including defined symbols, their external calls, and who calls them.",
+        description="Get full context for a specific file, including all its symbols.",
         inputSchema={
             "type": "object",
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Path to the file to analyse.",
+                    "description": "Path to the file.",
                 },
             },
             "required": ["file_path"],
@@ -216,13 +216,13 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="axon_pro_related_files",
-        description="Find all files that relate to a given file through incoming or outgoing code dependencies.",
+        description="Find files that are structurally or temporally coupled to a given file.",
         inputSchema={
             "type": "object",
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Path to the starting file.",
+                    "description": "Path to the reference file.",
                 },
             },
             "required": ["file_path"],
@@ -396,6 +396,18 @@ async def list_resources() -> list[Resource]:
         ),
     ]
 
+@server.read_resource()
+async def read_resource(uri: Any) -> str:
+    """Read a specific Axon Pro resource."""
+    storage = _get_storage()
+    uri_str = str(uri)
+
+    if _lock is not None:
+        async with _lock:
+            return await asyncio.to_thread(_dispatch_resource, uri_str, storage)
+    else:
+        return _dispatch_resource(uri_str, storage)
+
 def _dispatch_resource(uri_str: str, storage: KuzuBackend) -> str:
     """Synchronous resource dispatch."""
     if uri_str == "axon-pro://overview":
@@ -407,18 +419,6 @@ def _dispatch_resource(uri_str: str, storage: KuzuBackend) -> str:
     if uri_str == "axon-pro://agent-guidelines":
         return get_agent_guidelines()
     return f"Unknown resource: {uri_str}"
-
-
-@server.read_resource()
-async def read_resource(uri) -> str:
-    """Read the contents of an Axon Pro resource."""
-    storage = _get_storage()
-    uri_str = str(uri)
-
-    if _lock is not None:
-        async with _lock:
-            return await asyncio.to_thread(_dispatch_resource, uri_str, storage)
-    return _dispatch_resource(uri_str, storage)
 
 async def main() -> None:
     """Run the Axon Pro MCP server over stdio transport."""
